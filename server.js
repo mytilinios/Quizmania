@@ -6,7 +6,7 @@ const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(express.json({limit: "2mb"}));
+app.use(express.json({ limit: "2mb" }));
 
 // Serve frontend
 const rootFiles = fs.readdirSync(__dirname);
@@ -17,10 +17,9 @@ const indexFile = indexFiles.find(f => f.toLowerCase() === "index.html");
 const indexPath = indexFile ? path.join(publicDir, indexFile) : path.join(__dirname, "index.html");
 
 app.use(express.static(publicDir));
-app.get("/", (_, res) => res.sendFile(indexPath));
 
-// ── AI Proxy endpoint ──────────────────────────────────────────────
-app.post("/api/generate", async (req, res) => {
+// ── AI Proxy ──────────────────────────────────────────────────────────
+app.post("/api/generate", (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "No prompt" });
 
@@ -36,7 +35,8 @@ app.post("/api/generate", async (req, res) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body)
+      "Content-Length": Buffer.byteLength(body),
+      "anthropic-version": "2023-06-01"
     }
   };
 
@@ -46,25 +46,38 @@ app.post("/api/generate", async (req, res) => {
     apiRes.on("end", () => {
       try {
         const parsed = JSON.parse(data);
+        console.log("AI response status:", apiRes.statusCode);
+        if (parsed.error) {
+          console.log("AI error:", parsed.error);
+          return res.status(500).json({ error: parsed.error.message });
+        }
         const text = parsed.content?.map(b => b.text || "").join("") || "{}";
-        res.json({ text });
-      } catch(e) {
-        res.status(500).json({ error: "Parse error" });
+        // Clean and parse JSON from AI response
+        const clean = text.replace(/```json|```/g, "").trim();
+        console.log("AI text (first 200):", clean.substring(0, 200));
+        res.json({ text: clean });
+      } catch (e) {
+        console.log("Parse error:", e.message, "Raw:", data.substring(0, 300));
+        res.status(500).json({ error: "Parse error: " + e.message });
       }
     });
   });
 
-  apiReq.on("error", e => res.status(500).json({ error: e.message }));
+  apiReq.on("error", e => {
+    console.log("Request error:", e.message);
+    res.status(500).json({ error: e.message });
+  });
   apiReq.write(body);
   apiReq.end();
 });
 
-// ── iTunes proxy (CORS fix) ───────────────────────────────────────
-app.get("/api/preview", async (req, res) => {
+// ── iTunes Proxy ──────────────────────────────────────────────────────
+app.get("/api/preview", (req, res) => {
   const { q } = req.query;
   if (!q) return res.json({ results: [] });
-  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=1`;
-  https.get(url, apiRes => {
+  const url = `/search?term=${encodeURIComponent(q)}&media=music&limit=1`;
+  const opts = { hostname: "itunes.apple.com", path: url, method: "GET" };
+  https.get(opts, apiRes => {
     let data = "";
     apiRes.on("data", chunk => data += chunk);
     apiRes.on("end", () => {
@@ -78,7 +91,6 @@ app.get("*", (_, res) => res.sendFile(indexPath));
 
 const server = app.listen(PORT, () => console.log(`QuizMania running on port ${PORT}`));
 const wss = new WebSocketServer({ server });
-
 const rooms = new Map();
 
 function broadcastToRoom(roomCode, message, excludeId = null) {
@@ -137,5 +149,4 @@ wss.on("connection", (ws) => {
   });
   ws.on("error", () => {});
 });
-
 console.log("QuizMania server started!");
