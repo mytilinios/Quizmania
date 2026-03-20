@@ -1,31 +1,13 @@
 const express = require("express");
 const { WebSocketServer } = require("ws");
 const path = require("path");
-const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Find the correct public folder and index file regardless of case
-function findFile(dir, names) {
-  const files = fs.readdirSync(dir);
-  for (const name of names) {
-    const found = files.find(f => f.toLowerCase() === name.toLowerCase());
-    if (found) return path.join(dir, found);
-  }
-  return null;
-}
-
-const rootFiles = fs.readdirSync(__dirname);
-const publicFolder = rootFiles.find(f => f.toLowerCase() === "public");
-const publicDir = publicFolder ? path.join(__dirname, publicFolder) : __dirname;
-const indexFile = findFile(publicDir, ["index.html"]) || path.join(publicDir, "index.html");
-
-console.log("Public dir:", publicDir);
-console.log("Index file:", indexFile);
-
-app.use(express.static(publicDir));
-app.get("*", (_, res) => res.sendFile(indexFile));
+// Serve index.html from root directory directly
+app.get("/", (_, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("*", (_, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 const server = app.listen(PORT, () => console.log(`QuizMania running on port ${PORT}`));
 const wss = new WebSocketServer({ server });
@@ -37,15 +19,11 @@ function broadcastToRoom(roomCode, message, excludeId = null) {
   if (!room) return;
   const data = JSON.stringify(message);
   room.players.forEach((player, id) => {
-    if (id !== excludeId && player.ws.readyState === 1) {
-      player.ws.send(data);
-    }
+    if (id !== excludeId && player.ws.readyState === 1) player.ws.send(data);
   });
 }
 
-function sendToAll(roomCode, message) {
-  broadcastToRoom(roomCode, message);
-}
+function sendToAll(roomCode, message) { broadcastToRoom(roomCode, message); }
 
 function getPlayersArray(roomCode) {
   const room = rooms.get(roomCode);
