@@ -8,14 +8,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "2mb" }));
 
-const rootFiles = fs.readdirSync(__dirname);
-const publicFolder = rootFiles.find(f => f.toLowerCase() === "public");
-const publicDir = publicFolder ? path.join(__dirname, publicFolder) : __dirname;
-const indexFiles = fs.readdirSync(publicDir);
-const indexFile = indexFiles.find(f => f.toLowerCase() === "index.html");
-const indexPath = indexFile ? path.join(publicDir, indexFile) : path.join(__dirname, "index.html");
+// Serve from root - index.html is in root directory
+const indexPath = path.join(__dirname, "index.html");
+console.log("Serving index from:", indexPath);
 
-app.use(express.static(publicDir));
+app.use(express.static(__dirname));
 
 // ── AI Proxy ──────────────────────────────────────────────────────────
 app.post("/api/generate", (req, res) => {
