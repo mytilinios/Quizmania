@@ -151,7 +151,7 @@ wss.on("connection", (ws) => {
   ws.on("message", (raw) => {
     let msg; try { msg = JSON.parse(raw); } catch { return; }
     if (msg.type === "CREATE_ROOM") {
-      const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const code = String(Math.floor(100000 + Math.random() * 900000));
       myId = msg.playerId; myRoom = code;
       rooms.set(code, { players: new Map([[myId, { ws, name: msg.name, score: 0, colorIdx: 0, isHost: true }]]), category: "general", started: false });
       ws.send(JSON.stringify({ type: "ROOM_CREATED", room: code, playerId: myId }));
