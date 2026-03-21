@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QuizMania 🎮</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0a0a0f;font-family:'Nunito',sans-serif;color:#f0eee8;min-height:100vh;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:#2a2a40;border-radius:3px;}
+.screen{min-height:100vh;display:flex;flex-direction:column;padding:20px 16px;}
+.inner{max-width:520px;width:100%;margin:0 auto;}
+.center{align-items:center;justify-content:center;text-align:center;}
+.bebas{font-family:'Bebas Neue',sans-serif;}
+.accent{color:#f0c040;}
+.muted{color:#8884a0;}
+.green{color:#3dffa0;}
+.red{color:#ff4f6a;}
+.purple{color:#c084fc;}
+.btn-primary{padding:13px 24px;background:#f0c040;color:#000;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;transition:transform 0.1s;}
+.btn-primary:hover{transform:scale(1.03);}
+.btn-primary:active{transform:scale(0.97);}
+.btn-ghost{padding:12px 24px;background:transparent;color:#8884a0;border:1px solid #2a2a40;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Nunito',sans-serif;}
+.btn-full{width:100%;display:block;margin-top:10px;}
+input{width:100%;padding:12px 16px;border-radius:10px;border:2px solid #2a2a40;background:#13131c;color:#f0eee8;font-size:15px;font-family:'Nunito',sans-serif;outline:none;transition:border-color 0.2s;}
+input:focus{border-color:#f0c040;}
+.card{background:#1c1c2e;border-radius:20px;padding:28px;border:1px solid #2a2a40;margin-top:16px;}
+.surface{background:#13131c;border-radius:12px;padding:14px 18px;border:1px solid #2a2a40;}
+.label{color:#8884a0;font-size:11px;letter-spacing:2px;margin-bottom:8px;font-family:'Bebas Neue',sans-serif;display:block;}
+.chip{display:flex;align-items:center;gap:8px;padding:7px 12px;background:#13131c;border-radius:10px;border:1px solid #2a2a40;}
+.ans-btn{background:transparent;border:none;cursor:pointer;font-family:'Nunito',sans-serif;border-radius:12px;padding:16px 12px;text-align:left;display:flex;align-items:flex-start;gap:10px;transition:transform 0.1s;width:100%;}
+.ans-btn:active{transform:scale(0.97);}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes musicBar{0%{transform:scaleY(0.5);opacity:0.5;}100%{transform:scaleY(1.4);opacity:1;}}
+.spinner{width:44px;height:44px;border:4px solid #f0c040;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:20px auto;}
+.orb{position:fixed;border-radius:50%;pointer-events:none;filter:blur(60px);opacity:0.06;}
+#status-bar{position:fixed;bottom:0;left:0;right:0;background:#1c1c2e;color:#8884a0;font-size:11px;padding:4px 12px;text-align:center;z-index:999;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="status-bar">Σύνδεση...</div>
+
+<script>
+// v3.0 - music subcategories fix
+const CATEGORIES=[{id:"general",label:"Γενικές Γνώσεις",emoji:"🧠"},{id:"football",label:"Ποδόσφαιρο",emoji:"⚽"},{id:"pictionary",label:"Pictionary",emoji:"🎨"},{id:"vocabulary",label:"Λεξιλόγιο",emoji:"📚"},{id:"geography",label:"Γεωγραφία",emoji:"🌍"},{id:"movies",label:"Κινηματογράφος & Σειρές",emoji:"🎬"},{id:"music",label:"Μουσική",emoji:"🎵",hasSubcategories:true},{id:"history",label:"Ιστορία",emoji:"🏛️"},{id:"science",label:"Επιστήμη & Τεχνολογία",emoji:"🔬"},{id:"food",label:"Φαγητό & Μαγειρική",emoji:"🍕"},{id:"videogames",label:"Video Games",emoji:"🎮"},{id:"animals",label:"Ζώα & Φύση",emoji:"🐾"},{id:"sports",label:"Αθλητισμός",emoji:"🏆"},{id:"travel",label:"Ταξίδια & Χώρες",emoji:"✈️"},{id:"trivia",label:"Τριβιά & Παράξενα",emoji:"🧩"}];
+const MUSIC_SUBCATEGORIES=[
+  {id:"laika",label:"Λαϊκά"},
+  {id:"palia_laika",label:"Παλιά Λαϊκά"},
+  {id:"ellhnikh_pop",label:"Ελληνική Pop"},
+  {id:"entexna",label:"Έντεχνα"},
+  {id:"rok",label:"Ροκ"},
+  {id:"hiphop",label:"Hip-Hop / Rap"},
+  {id:"pop",label:"Διεθνής Pop"},
+  {id:"mixta",label:"Μίξη όλων"},
+];
+
+const COLORS=["#f0c040","#3dffa0","#4fa3ff","#c084fc","#ff4f6a"];
+function shuffle(arr){for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
+const getColor=i=>COLORS[i%5];
+const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
+const myId=Math.random().toString(36).slice(2);
+
+let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:["mixta"],questionCount:10,questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
+let ws=null,timerInterval=null,audioEl=null,wsReady=false;
+
+function setStatus(msg,ok=false){
+  const el=document.getElementById("status-bar");
+  if(el){el.textContent=msg;el.style.color=ok?"#3dffa0":"#8884a0";}
+}
+
+function connectWS(cb){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  const url=`${proto}://${location.host}`;
+  setStatus("Σύνδεση στον server...");
+  ws=new WebSocket(url);
+  ws.onopen=()=>{wsReady=true;setStatus("✓ Συνδέθηκε",true);if(cb)cb();};
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+  ws.onerror=()=>setStatus("⚠️ Σφάλμα σύνδεσης");
+  ws.onclose=()=>{
+    wsReady=false;
+    setStatus("Επανασύνδεση...");
+    setTimeout(()=>connectWS(),3000);
+  };
+}
+
+function send(msg){if(ws&&ws.readyState===1)ws.send(JSON.stringify(msg));}
+
+function handleMsg(msg){
+  if(msg.type==="ROOM_CREATED"){state.room=msg.room;render();}
+  if(msg.type==="ROOM_JOINED"){state.room=msg.room;state.screen="waiting";render();}
+  if(msg.type==="ERROR"){alert(msg.message);}
+  if(msg.type==="PLAYERS_UPDATE"){state.players=msg.players;render();}
+  if(msg.type==="CATEGORY_CHANGED"){state.category=msg.category;render();}
+  if(msg.type==="GAME_START"){state.category=msg.category;state.screen="loading";render();if(state.isHost)generateAndSend();}
+  if(msg.type==="QUESTIONS_READY"){state.questions=shuffle(msg.questions.slice());state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);}
+  if(msg.type==="ANSWER"){state.answers[msg.playerId]={answer:msg.answer,timestamp:msg.timestamp};render();if(state.isHost){var nhp=state.players.filter(function(p){return !p.isHost;});var nha=nhp.filter(function(p){return state.answers[p.id];});if(nhp.length>0&&nha.length>=nhp.length){clearInterval(timerInterval);setTimeout(doReveal,300);}else if(Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}}
+  if(msg.type==="SHOW_REVEAL"){clearInterval(timerInterval);stopAudio();state.roundPoints=msg.roundPoints;state.screen="reveal";render();if(state.isHost){setTimeout(()=>{if(state.screen==="reveal")nextQuestion();},5000);}}
+  if(msg.type==="NEXT_QUESTION"){state.players=msg.players;state.qIndex=msg.qIndex;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);if(msg.qIndex>=msg.total){state.screen="final";}else{state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);return;}render();}
+}
+
+async function generateAndSend(){
+  const cat=state.category;
+  const catLabel=CATEGORIES.find(c=>c.id===cat)?.label||cat;
+  let prompt="";
+  if(cat==="pictionary"){prompt=`Δημιούργησε ${state.questionCount} λέξεις για Pictionary στα Ελληνικά. Απάντησε ΜΟΝΟ JSON:\n{"questions":[{"word":"...","hint":"κατηγορία","difficulty":"easy/medium/hard"}]}`;}
+  else if(cat==="music"){
+    var subcatLabels=state.musicSubcategory.map(function(id){var s=MUSIC_SUBCATEGORIES.find(function(x){return x.id===id;});return s?s.label:id;}).join(", ");
+    prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις μουσικής για τα στυλ "${subcatLabels}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
+  else{prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
+  try{
+    const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,count:state.questionCount})});
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
+    const qs=data.questions||[];
+    if(cat==="music"){for(const q of qs){q.previewUrl=await fetchPreview(q.trackName,q.artistName);}}
+    var shuffledQs=shuffle(qs.slice());send({type:"QUESTIONS_READY",questions:shuffledQs,category:cat});
+    state.questions=shuffle(qs.slice());state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(cat);state.screen="question";render();startTimer();if(cat==="music")setTimeout(playPreview,500);
+  }catch(e){alert("Σφάλμα AI: "+e.message);state.screen="lobby";render();}
+}
+
+async function fetchPreview(track,artist){try{const r=await fetch(`/api/preview?track=${encodeURIComponent(track)}&artist=${encodeURIComponent(artist)}`);const d=await r.json();return d.videoId?`https://www.youtube.com/embed/${d.videoId}?autoplay=1&start=0&end=20&controls=0`:null;}catch{return null;}}
+
+function computeRoundPoints(){
+  const q=state.questions[state.qIndex];
+  const isPic=state.category==="pictionary";
+  const total=state.players.length;
+  const correct=state.players.map(p=>{const a=state.answers[p.id];if(!a)return null;const ok=isPic?a.answer?.toLowerCase().trim()===q.word?.toLowerCase().trim():a.answer===q.answer;return ok?{id:p.id,ts:a.timestamp}:null;}).filter(Boolean).sort((a,b)=>a.ts-b.ts);
+  const pts={};state.players.forEach(p=>pts[p.id]=0);correct.forEach((c,i)=>pts[c.id]=Math.max(0,total-1-i));return pts;
+}
+
+function doReveal(){const pts=computeRoundPoints();state.roundPoints=pts;state.screen="reveal";stopAudio();send({type:"SHOW_REVEAL",roundPoints:pts});render();
+  // Auto-advance after 5 seconds
+  setTimeout(()=>{if(state.screen==="reveal")nextQuestion();},5000);
+}
+
+function startTimer(){
+  clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{
+    state.timeLeft--;updateTimerDisplay();
+    if(state.timeLeft<=0){clearInterval(timerInterval);if(state.isHost)doReveal();}
+  },1000);
+}
+
+function updateTimerDisplay(){
+  const el=document.getElementById("countdown-num");
+  const ring=document.getElementById("countdown-ring");
+  if(!el)return;
+  el.textContent=state.timeLeft;
+  const total=getTimeLimit(state.category);
+  const r=28,circ=2*Math.PI*r;
+  if(ring)ring.style.strokeDashoffset=circ*(1-state.timeLeft/total);
+  const color=state.timeLeft<=5?"#ff4f6a":state.timeLeft<=10?"#f0c040":"#3dffa0";
+  el.style.color=color;if(ring)ring.style.stroke=color;
+}
+
+function playPreview(){
+  const q=state.questions[state.qIndex];
+  if(!q?.previewUrl)return;
+  stopAudio();
+  // Remove old iframe if exists
+  var old=document.getElementById('yt-player');
+  if(old)old.remove();
+  var iframe=document.createElement('iframe');
+  iframe.id='yt-player';
+  iframe.src=q.previewUrl;
+  iframe.style.cssText='position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;';
+  iframe.allow='autoplay';
+  document.body.appendChild(iframe);
+  audioEl=iframe;
+}
+function stopAudio(){
+  if(audioEl){audioEl.remove();audioEl=null;}
+  var old=document.getElementById('yt-player');
+  if(old)old.remove();
+}
+
+function avatar(name,color,size=36){return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color}33;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:${size*0.42}px;font-weight:700;color:${color};flex-shrink:0;font-family:'Bebas Neue',sans-serif;">${(name||"?")[0].toUpperCase()}</div>`;}
+
+function countdownRing(){
+  const total=getTimeLimit(state.category);const r=28,circ=2*Math.PI*r;
+  const color=state.timeLeft<=5?"#ff4f6a":state.timeLeft<=10?"#f0c040":"#3dffa0";
+  return `<div style="position:relative;width:72px;height:72px;flex-shrink:0;"><svg width="72" height="72" style="transform:rotate(-90deg);"><circle cx="36" cy="36" r="${r}" fill="none" stroke="#2a2a40" stroke-width="5"/><circle id="countdown-ring" cx="36" cy="36" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-dasharray="${circ}" stroke-dashoffset="${circ*(1-state.timeLeft/total)}" style="transition:stroke-dashoffset 1s linear,stroke 0.3s;"/></svg><span id="countdown-num" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:${color};font-family:'Bebas Neue',sans-serif;">${state.timeLeft}</span></div>`;
+}
+
+function orbsBg(){return[[10,20],[60,70],[30,50],[80,10],[5,80],[55,40]].map(([l,t],i)=>`<div class="orb" style="width:${300+i*80}px;height:${300+i*80}px;background:${["#f0c040","#c084fc","#4fa3ff"][i%3]};left:${l}%;top:${t}%;transform:translate(-50%,-50%);"></div>`).join("");}
+
+function renderHome(){return `<div class="screen center" style="position:relative;">${orbsBg()}<div style="position:relative;z-index:1;max-width:440px;width:100%;text-align:center;"><div style="font-size:56px;margin-bottom:8px;">🎮</div><h1 class="bebas accent" style="font-size:52px;letter-spacing:4px;line-height:1;">QUIZMANIA</h1><p class="muted" style="font-size:14px;margin:6px 0 32px;">Multiplayer Quiz με AI, Μουσική & Σύστημα Ταχύτητας</p><div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;"><button class="btn-primary" style="font-size:16px;padding:15px 28px;" onclick="showHostForm()">🎯 Δημιουργία Δωματίου</button><button class="btn-ghost" style="font-size:16px;padding:15px 28px;" onclick="showJoinForm()">🔑 Είσοδος</button></div><div id="form-area"></div></div></div>`;}
+
+function showHostForm(){document.getElementById("form-area").innerHTML=`<div class="card"><span class="label">ΔΗΜΙΟΥΡΓΙΑ ΔΩΜΑΤΙΟΥ</span><input id="host-name" placeholder="Το όνομά σου" maxlength="20"/><button class="btn-primary btn-full" onclick="doHost()">Δημιουργία →</button><button class="btn-ghost btn-full" onclick="document.getElementById('form-area').innerHTML=''">Πίσω</button></div>`;setTimeout(()=>document.getElementById("host-name")?.focus(),100);}
+function showJoinForm(){document.getElementById("form-area").innerHTML=`<div class="card"><span class="label">ΕΙΣΟΔΟΣ ΣΤΟ ΔΩΜΑΤΙΟ</span><input id="join-code" placeholder="Κωδικός" maxlength="5" style="letter-spacing:6px;font-family:'Bebas Neue',sans-serif;font-size:22px;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"/><input id="join-name" placeholder="Το όνομά σου" maxlength="20" style="margin-top:10px;"/><button class="btn-primary btn-full" onclick="doJoin()">Σύνδεση →</button><button class="btn-ghost btn-full" onclick="document.getElementById('form-area').innerHTML=''">Πίσω</button></div>`;}
+
+function doHost(){
+  const name=document.getElementById("host-name")?.value.trim();
+  if(!name)return;
+  state.isHost=true;state.players=[{id:myId,name,isHost:true,score:0,colorIdx:0}];
+  connectWS(()=>{send({type:"CREATE_ROOM",playerId:myId,name});state.screen="lobby";render();});
+}
+
+function doJoin(){
+  const code=document.getElementById("join-code")?.value.trim().toUpperCase();
+  const name=document.getElementById("join-name")?.value.trim();
+  if(!code||!name)return;
+  state.isHost=false;
+  connectWS(()=>send({type:"JOIN_ROOM",playerId:myId,name,room:code}));
+}
+
+function renderLobby(){
+  const catBtns=CATEGORIES.map(cat=>`<button onclick="selectCategory('${cat.id}')" style="padding:9px 13px;border-radius:10px;cursor:pointer;text-align:left;border:2px solid ${state.category===cat.id?"#f0c040":"#2a2a40"};background:${state.category===cat.id?"#f0c04022":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;display:flex;align-items:center;gap:8px;width:100%;"><span>${cat.emoji}</span><span>${cat.label}</span></button>`).join("");
+  const chips=state.players.map(p=>`<div class="chip">${avatar(p.name,getColor(p.colorIdx),28)}<span style="font-size:13px;font-weight:600;">${p.name}</span>${p.isHost?'<span style="color:#f0c040;font-size:10px;">HOST</span>':""}</div>`).join("");
+  return `<div class="screen"><div class="inner"><div style="text-align:center;margin-bottom:24px;"><span class="label">ΚΩΔΙΚΟΣ ΔΩΜΑΤΙΟΥ</span><div class="bebas accent" style="font-size:64px;letter-spacing:12px;line-height:1.1;">${state.room}</div><p class="muted" style="font-size:13px;">Μοιραστείτε τον κωδικό με τους παίκτες</p></div><span class="label">ΚΑΤΗΓΟΡΙΑ</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:220px;overflow-y:auto;margin-bottom:10px;">${catBtns}</div><p style="color:#f0c040;font-size:13px;margin-bottom:14px;">✓ ${CATEGORIES.find(c=>c.id===state.category)?.label}</p><div class="surface" style="margin-bottom:14px;"><p style="color:#f0c040;font-size:12px;font-weight:700;margin-bottom:4px;">⚡ ΣΥΣΤΗΜΑ ΠΟΝΤΩΝ ΤΑΧΥΤΗΤΑΣ</p><p class="muted" style="font-size:12px;line-height:1.7;">1ος σωστός = N-1 πόντοι, 2ος = N-2, ..., τελευταίος = 0</p></div>
+  <div style="margin-bottom:14px;">
+    <p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΑΡΙΘΜΟΣ ΕΡΩΤΗΣΕΩΝ</p>
+    <div style="display:flex;gap:10px;">
+      ${[10,20,30].map(n=>`<button onclick="selectCount(${n})" style="flex:1;padding:10px;border-radius:10px;cursor:pointer;border:2px solid ${state.questionCount===n?"#f0c040":"#2a2a40"};background:${state.questionCount===n?"#f0c04022":"#13131c"};color:${state.questionCount===n?"#f0c040":"#f0eee8"};font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;">${n}</button>`).join("")}
+    </div>
+  </div>
+  ${state.category==="music"?`<div style="margin-bottom:14px;"><p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΣΤΥΛ ΜΟΥΣΙΚΗΣ</p><div style="display:flex;flex-wrap:wrap;gap:8px;">${MUSIC_SUBCATEGORIES.map(s=>`<button onclick="selectMusicSub('${s.id}')" style="padding:7px 14px;border-radius:8px;cursor:pointer;border:2px solid ${state.musicSubcategory.indexOf(s.id)>=0?"#c084fc":"#2a2a40"};background:${state.musicSubcategory.indexOf(s.id)>=0?"#c084fc22":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;">${s.label}</button>`).join("")}</div></div>`:""}<span class="label">ΠΑΙΚΤΕΣ (${state.players.length})</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">${chips}</div><button class="btn-primary" style="width:100%;font-size:17px;padding:16px;" onclick="startGame()">🚀 Έναρξη Παιχνιδιού</button></div></div>`;
+}
+
+function selectCategory(id){state.category=id;send({type:"CATEGORY_CHANGE",category:id});render();}
+function selectMusicSub(id){
+  if(id==="mixta"){state.musicSubcategory=["mixta"];}
+  else{
+    var arr=state.musicSubcategory.filter(function(x){return x!=="mixta";});
+    var idx=arr.indexOf(id);
+    if(idx>=0){arr.splice(idx,1);}else{arr.push(id);}
+    state.musicSubcategory=arr.length===0?["mixta"]:arr;
+  }
+  render();
+}
+function selectCount(n){state.questionCount=n;render();}
+function selectMusicSub(id){
+  if(id==="mixta"){state.musicSubcategory=["mixta"];}
+  else{
+    var arr=state.musicSubcategory.filter(function(x){return x!=="mixta";});
+    var idx=arr.indexOf(id);
+    if(idx>=0){arr.splice(idx,1);}else{arr.push(id);}
+    state.musicSubcategory=arr.length===0?["mixta"]:arr;
+  }
+  render();
+}
+function selectCount(n){state.questionCount=n;render();}
+function startGame(){send({type:"GAME_START",category:state.category});state.screen="loading";render();generateAndSend();}
+
+function renderWaiting(){const chips=state.players.map(p=>`<div class="chip">${avatar(p.name,getColor(p.colorIdx),28)}<span style="font-size:13px;">${p.name}</span></div>`).join("");return `<div class="screen center"><div style="font-size:48px;">⏳</div><h2 class="bebas" style="font-size:28px;letter-spacing:2px;margin:12px 0 4px;">ΑΝΑΜΟΝΗ ΕΝΑΡΞΗΣ</h2><p class="muted">Κωδικός: <span class="accent" style="font-weight:700;">${state.room}</span></p><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px;">${chips}</div><div class="spinner"></div></div>`;}
+
+function renderLoading(){const cat=CATEGORIES.find(c=>c.id===state.category);return `<div class="screen center"><div style="font-size:64px;margin-bottom:12px;">${cat?.emoji||"🎮"}</div><h2 class="bebas accent" style="font-size:46px;letter-spacing:4px;">Are you ready?</h2><p class="muted" style="margin-top:8px;font-size:15px;">${cat?.label} — Ετοιμαστείτε!</p><div class="spinner"></div></div>`;}
+
+function renderQuestionHost(){
+  const q=state.questions[state.qIndex];const isPic=state.category==="pictionary";const isMusic=state.category==="music";
+  const answered=Object.keys(state.answers).length;const colors=["#f0c040","#4fa3ff","#c084fc","#3dffa0"];const letters=["Α","Β","Γ","Δ"];
+  const statuses=state.players.map(p=>{const a=state.answers[p.id];return `<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:${a!==undefined?"#3dffa022":"#13131c"};border:1px solid ${a!==undefined?"#3dffa044":"#2a2a40"};">${avatar(p.name,getColor(p.colorIdx),22)}<span style="font-size:11px;">${p.name}</span>${a!==undefined?"<span>✓</span>":""}</div>`;}).join("");
+  let content="";
+  if(isPic){content=`<div style="text-align:center;padding:28px 0;"><p class="muted" style="font-size:13px;margin-bottom:8px;">Ζωγραφίστε:</p><div class="bebas accent" style="font-size:50px;letter-spacing:4px;">${(q.word||"").toUpperCase()}</div><span style="background:#13131c;padding:4px 14px;border-radius:8px;color:#8884a0;font-size:12px;">Κατηγορία: ${q.hint}</span></div>`;}
+  else{const opts=(q.options||[]).map((opt,i)=>`<div style="background:${colors[i]}18;border:2px solid ${colors[i]}44;border-radius:12px;padding:13px 14px;display:flex;gap:10px;align-items:flex-start;"><span class="bebas" style="font-size:20px;color:${colors[i]};min-width:22px;">${letters[i]}</span><span style="font-size:13px;font-weight:600;line-height:1.4;">${opt}</span></div>`).join("");
+  const musicPl=isMusic?`<div style="background:linear-gradient(135deg,#c084fc22,#4fa3ff22);border-radius:14px;padding:16px 20px;border:2px solid #c084fc44;margin-bottom:14px;display:flex;align-items:center;gap:14px;">
+    ${q.previewUrl?`<iframe id="yt-frame" src="${q.previewUrl}&mute=0" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;" allow="autoplay" allowfullscreen></iframe>
+    <div style="font-size:32px;">🎵</div>
+    <div><div style="font-weight:700;font-size:15px;color:#f0eee8;">Ακούστε το τραγούδι!</div>
+    <div style="font-size:12px;color:#8884a0;margin-top:4px;">Ο ήχος παίζει αυτόματα</div></div>`
+    :`<div style="font-size:32px;">🔇</div><div style="color:#8884a0;font-size:13px;">Δεν βρέθηκε preview</div>`}
+  </div>`:"";
+  var musicQuestion=isMusic?(q.guessType==="title"?"🎵 Ποιος είναι ο τίτλος του τραγουδιού;":"🎤 Ποιος ερμηνεύει αυτό το τραγούδι;"):(q.q||"");
+  content=`${musicPl}<div class="surface" style="margin-bottom:14px;"><p style="font-size:16px;font-weight:700;line-height:1.5;">${musicQuestion}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
+  return `<div class="screen"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span class="muted bebas" style="letter-spacing:2px;">ΕΡΩΤΗΣΗ ${state.qIndex+1}/${state.questions.length}</span>${countdownRing()}<span class="muted" style="font-size:13px;">✅ ${answered}/${state.players.length}</span></div>${content}<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;">${statuses}</div></div></div>`;
+}
+
+function renderQuestionPlayer(){
+  const q=state.questions[state.qIndex];const isPic=state.category==="pictionary";const isMusic=state.category==="music";
+  const colors=["#f0c040","#4fa3ff","#c084fc","#3dffa0"];const letters=["Α","Β","Γ","Δ"];
+  if(state.myAnswer!==undefined)return `<div class="screen center"><div class="inner" style="text-align:center;"><div style="font-size:56px;">⚡</div><p class="green" style="font-weight:700;font-size:18px;margin-top:10px;">Απάντησες!</p><p class="muted" style="font-size:13px;margin-top:4px;">Αναμονή υπολοίπων...</p>${countdownRing()}</div></div>`;
+  let content="";
+  if(isPic){content=`<p style="font-weight:700;font-size:16px;margin-bottom:12px;">Τι ζωγραφίζει το host;</p><div style="display:flex;gap:10px;"><input id="pic-ans" placeholder="Γράψε εδώ..." style="flex:1;" onkeydown="if(event.key==='Enter')submitPic();"/><button class="btn-primary" style="padding:12px 18px;" onclick="submitPic()">→</button></div>`;}
+  else{const musicNote=isMusic?`<div style="background:linear-gradient(135deg,#c084fc22,#4fa3ff22);border-radius:14px;padding:14px 18px;border:2px solid #c084fc44;margin-bottom:14px;text-align:center;"><div style="font-size:30px;">🎵</div><p class="purple" style="font-size:13px;font-weight:700;margin-top:4px;">Ακούστε το τραγούδι στην κεντρική οθόνη</p></div>`:"";
+  const opts=(q.options||[]).map((opt,i)=>`<button class="ans-btn" onclick="submitAnswer(${i})" style="background:${colors[i]}22;border:2px solid ${colors[i]}66;"><span class="bebas" style="font-size:22px;color:${colors[i]};min-width:22px;line-height:1;">${letters[i]}</span><span style="font-size:13px;font-weight:600;line-height:1.4;color:#f0eee8;">${opt}</span></button>`).join("");
+  content=`${musicNote}<div class="surface" style="margin-bottom:14px;"><p style="font-size:15px;font-weight:700;line-height:1.5;">${state.category==="music"?(q.guessType==="title"?"🎵 Ποιος είναι ο τίτλος του τραγουδιού;":"🎤 Ποιος ερμηνεύει αυτό το τραγούδι;"):(q.q||"")}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
+  return `<div class="screen"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span class="muted" style="font-size:14px;">${state.qIndex+1}/${state.questions.length}</span>${countdownRing()}<span class="muted" style="font-size:12px;">⚡ Απάντα γρήγορα!</span></div>${content}</div></div>`;
+}
+
+function submitAnswer(i){if(state.myAnswer!==undefined)return;state.myAnswer=i;const ts=Date.now();state.answers[myId]={answer:i,timestamp:ts};send({type:"ANSWER",playerId:myId,answer:i,timestamp:ts});render();if(state.isHost){var nhp2=state.players.filter(function(p){return !p.isHost;});var nha2=nhp2.filter(function(p){return state.answers[p.id];});if(nhp2.length>0&&nha2.length>=nhp2.length){clearInterval(timerInterval);setTimeout(doReveal,300);}else if(Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}}
+function submitPic(){const val=document.getElementById("pic-ans")?.value.trim();if(!val||state.myAnswer!==undefined)return;state.myAnswer=val;const ts=Date.now();state.answers[myId]={answer:val,timestamp:ts};send({type:"ANSWER",playerId:myId,answer:val,timestamp:ts});render();}
+function toggleAudio(){if(!audioEl){playPreview();const b=document.getElementById("play-btn");if(b)b.textContent="⏸";}else{stopAudio();const b=document.getElementById("play-btn");if(b)b.textContent="▶️";}}
+
+function renderReveal(){
+  const q=state.questions[state.qIndex];const isPic=state.category==="pictionary";
+  const ranked=[...state.players].map(p=>({...p,pts:state.roundPoints[p.id]??0,ans:state.answers[p.id]})).sort((a,b)=>b.pts-a.pts);
+  const rows=ranked.map((p,i)=>{const isOk=p.pts>0;const ansText=p.ans?(isPic?`"${p.ans.answer}"`:(q.options||[])[p.ans.answer]||""):"";return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:5px;border-radius:10px;background:${isOk?"#3dffa018":"#13131c"};border:1px solid ${isOk?"#3dffa044":"#2a2a40"};"><span style="font-size:16px;min-width:24px;">${isOk?(["🥇","🥈","🥉"][i]||"✓"):"✗"}</span>${avatar(p.name,getColor(p.colorIdx),28)}<span style="flex:1;font-size:13px;font-weight:600;">${p.name}</span><span class="muted" style="font-size:12px;">${p.ans?ansText:'<span style="color:#ff4f6a;">⏰</span>'}</span><span class="bebas" style="font-size:18px;min-width:40px;text-align:right;color:${p.pts>0?"#3dffa0":"#8884a0"};">${p.pts>0?`+${p.pts}`:"0"}</span></div>`;}).join("");
+  const ans=isPic?`<div style="font-size:40px;" class="bebas">${(q.word||"").toUpperCase()}</div>`:`<div style="background:#3dffa022;border:2px solid #3dffa055;border-radius:12px;padding:12px 20px;display:inline-block;"><span style="font-weight:700;font-size:15px;">${(q.options||[])[q.answer]||""}</span></div>${q.fun_fact?`<p class="muted" style="font-size:12px;font-style:italic;margin-top:8px;">💡 ${q.fun_fact}</p>`:""}`;
+  const btn=state.isHost?`<button class="btn-primary" style="width:100%;font-size:16px;" onclick="nextQuestion()">Επόμενη Ερώτηση →</button><p class="muted" style="font-size:12px;text-align:center;margin-top:8px;">Ή περίμενε 5 δευτερόλεπτα...</p>`:`<p class="muted" style="text-align:center;font-size:14px;">⏳ Αναμονή host...</p>`;
+  return `<div class="screen"><div class="inner"><div style="text-align:center;margin-bottom:20px;"><div style="font-size:40px;">${isPic?"🎨":"✅"}</div><h2 class="bebas ${isPic?"accent":"green"}" style="font-size:22px;margin:8px 0;">${isPic?"Η ΛΕΞΗ ΗΤΑΝ:":"ΣΩΣΤΗ ΑΠΑΝΤΗΣΗ"}</h2>${ans}</div><span class="label">ΑΠΟΤΕΛΕΣΜΑΤΑ ΓΥΡΟΥ ⚡</span>${rows}<div style="margin-top:18px;">${btn}</div></div></div>`;
+}
+
+function nextQuestion(){
+  const newPlayers=state.players.map(p=>({...p,score:p.score+(state.roundPoints[p.id]??0)}));
+  const nextIdx=state.qIndex+1;state.players=newPlayers;state.qIndex=nextIdx;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(state.category);
+  send({type:"NEXT_QUESTION",players:newPlayers,qIndex:nextIdx,total:state.questions.length,category:state.category});
+  if(nextIdx>=state.questions.length){state.screen="final";}else{state.screen="question";render();startTimer();if(state.category==="music")setTimeout(playPreview,500);return;}render();
+}
+
+function renderFinal(){
+  const sorted=[...state.players].sort((a,b)=>b.score-a.score);
+  const rows=sorted.map((p,i)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;border-radius:10px;background:${i===0?"#f0c04018":"#13131c"};border:1px solid ${i===0?"#f0c04044":"#2a2a40"};""><span style="font-size:18px;min-width:28px;">${["🥇","🥈","🥉"][i]||`${i+1}.`}</span>${avatar(p.name,getColor(p.colorIdx),32)}<span style="flex:1;font-weight:600;font-size:14px;">${p.name}</span><span class="bebas accent" style="font-size:18px;">${p.score} pts</span></div>`).join("");
+  return `<div class="screen center"><div class="inner" style="text-align:center;"><div style="font-size:64px;margin-bottom:8px;">🏆</div><h1 class="bebas accent" style="font-size:40px;letter-spacing:4px;margin-bottom:4px;">ΤΕΛΟΣ ΠΑΙΧΝΙΔΙΟΥ</h1><p class="muted" style="margin-bottom:24px;">Νικητής: <span class="accent" style="font-weight:700;">${sorted[0]?.name}</span> 🎉</p>${rows}<button class="btn-primary" style="width:100%;margin-top:24px;font-size:16px;" onclick="restartGame()">🔄 Νέο Παιχνίδι</button></div></div>`;
+}
+
+function restartGame(){if(ws)ws.close();clearInterval(timerInterval);stopAudio();state={screen:"home",isHost:false,room:"",players:[],category:"general",questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};render();}
+
+function render(){
+  const app=document.getElementById("app");
+  const s=state.screen;
+  if(s==="home")app.innerHTML=renderHome();
+  else if(s==="lobby")app.innerHTML=renderLobby();
+  else if(s==="waiting")app.innerHTML=renderWaiting();
+  else if(s==="loading")app.innerHTML=renderLoading();
+  else if(s==="question")app.innerHTML=state.isHost?renderQuestionHost():renderQuestionPlayer();
+  else if(s==="reveal")app.innerHTML=renderReveal();
+  else if(s==="final")app.innerHTML=renderFinal();
+}
+
+// Ξεκινάμε - ΔΕΝ συνδέουμε WebSocket αμέσως, μόνο όταν ο χρήστης πατήσει κουμπί
+render();
+setStatus("✓ Έτοιμο - Πατήστε για να ξεκινήσετε",true);
+</script>
+</body>
+</html>
