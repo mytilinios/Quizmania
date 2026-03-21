@@ -47,12 +47,12 @@ function getSpotifyToken() {
   });
 }
 
-function searchDeezerPreview(trackName, artistName) {
+function deezerSearch(query) {
   return new Promise((resolve) => {
-    const q = encodeURIComponent(`${trackName} ${artistName}`);
+    const q = encodeURIComponent(query);
     const options = {
       hostname: 'api.deezer.com',
-      path: `/search?q=${q}&limit=1`,
+      path: `/search?q=${q}&limit=3`,
       method: 'GET'
     };
     https.get(options, res => {
@@ -61,12 +61,30 @@ function searchDeezerPreview(trackName, artistName) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          const preview = parsed.data?.[0]?.preview;
-          resolve(preview || null);
+          // Find first result WITH a preview
+          const withPreview = parsed.data?.find(t => t.preview);
+          resolve(withPreview?.preview || null);
         } catch(e) { resolve(null); }
       });
     }).on('error', () => resolve(null));
   });
+}
+
+async function searchDeezerPreview(trackName, artistName) {
+  // Try multiple search strategies
+  let preview = null;
+  
+  // Strategy 1: track + artist
+  preview = await deezerSearch(`${trackName} ${artistName}`);
+  if (preview) return preview;
+  
+  // Strategy 2: track only
+  preview = await deezerSearch(trackName);
+  if (preview) return preview;
+  
+  // Strategy 3: artist only (get any song from this artist)
+  preview = await deezerSearch(`artist:"${artistName}"`);
+  return preview;
 }
 
 const app = express();
