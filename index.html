@@ -45,6 +45,17 @@ input:focus{border-color:#f0c040;}
 
 <script>
 const CATEGORIES=[{id:"general",label:"Γενικές Γνώσεις",emoji:"🧠"},{id:"football",label:"Ποδόσφαιρο",emoji:"⚽"},{id:"pictionary",label:"Pictionary",emoji:"🎨"},{id:"vocabulary",label:"Λεξιλόγιο",emoji:"📚"},{id:"geography",label:"Γεωγραφία",emoji:"🌍"},{id:"movies",label:"Κινηματογράφος & Σειρές",emoji:"🎬"},{id:"music",label:"Μουσική",emoji:"🎵",hasSubcategories:true},{id:"history",label:"Ιστορία",emoji:"🏛️"},{id:"science",label:"Επιστήμη & Τεχνολογία",emoji:"🔬"},{id:"food",label:"Φαγητό & Μαγειρική",emoji:"🍕"},{id:"videogames",label:"Video Games",emoji:"🎮"},{id:"animals",label:"Ζώα & Φύση",emoji:"🐾"},{id:"sports",label:"Αθλητισμός",emoji:"🏆"},{id:"travel",label:"Ταξίδια & Χώρες",emoji:"✈️"},{id:"trivia",label:"Τριβιά & Παράξενα",emoji:"🧩"}];
+const MUSIC_SUBCATEGORIES=[
+  {id:"laika",label:"Λαϊκά"},
+  {id:"palia_laika",label:"Παλιά Λαϊκά"},
+  {id:"ellhnikh_pop",label:"Ελληνική Pop"},
+  {id:"entexna",label:"Έντεχνα"},
+  {id:"rok",label:"Ροκ"},
+  {id:"hiphop",label:"Hip-Hop / Rap"},
+  {id:"pop",label:"Διεθνής Pop"},
+  {id:"mixta",label:"Μίξη όλων"},
+];
+
 const COLORS=["#f0c040","#3dffa0","#4fa3ff","#c084fc","#ff4f6a"];
 const getColor=i=>COLORS[i%5];
 const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
