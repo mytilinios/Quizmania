@@ -58,6 +58,7 @@ const MUSIC_SUBCATEGORIES=[
 ];
 
 const COLORS=["#f0c040","#3dffa0","#4fa3ff","#c084fc","#ff4f6a"];
+function shuffle(arr){for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}return arr;}
 const getColor=i=>COLORS[i%5];
 const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
 const myId=Math.random().toString(36).slice(2);
@@ -94,7 +95,7 @@ function handleMsg(msg){
   if(msg.type==="PLAYERS_UPDATE"){state.players=msg.players;render();}
   if(msg.type==="CATEGORY_CHANGED"){state.category=msg.category;render();}
   if(msg.type==="GAME_START"){state.category=msg.category;state.screen="loading";render();if(state.isHost)generateAndSend();}
-  if(msg.type==="QUESTIONS_READY"){state.questions=msg.questions;state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);}
+  if(msg.type==="QUESTIONS_READY"){state.questions=shuffle(msg.questions.slice());state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);}
   if(msg.type==="ANSWER"){state.answers[msg.playerId]={answer:msg.answer,timestamp:msg.timestamp};render();if(state.isHost){var nhp=state.players.filter(function(p){return !p.isHost;});var nha=nhp.filter(function(p){return state.answers[p.id];});if(nhp.length>0&&nha.length>=nhp.length){clearInterval(timerInterval);setTimeout(doReveal,300);}else if(Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}}
   if(msg.type==="SHOW_REVEAL"){clearInterval(timerInterval);stopAudio();state.roundPoints=msg.roundPoints;state.screen="reveal";render();if(state.isHost){setTimeout(()=>{if(state.screen==="reveal")nextQuestion();},5000);}}
   if(msg.type==="NEXT_QUESTION"){state.players=msg.players;state.qIndex=msg.qIndex;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);if(msg.qIndex>=msg.total){state.screen="final";}else{state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);return;}render();}
@@ -115,8 +116,8 @@ async function generateAndSend(){
     if(data.error)throw new Error(data.error);
     const qs=data.questions||[];
     if(cat==="music"){for(const q of qs){q.previewUrl=await fetchPreview(q.trackName,q.artistName);}}
-    send({type:"QUESTIONS_READY",questions:qs,category:cat});
-    state.questions=qs;state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(cat);state.screen="question";render();startTimer();if(cat==="music")setTimeout(playPreview,500);
+    var shuffledQs=shuffle(qs.slice());send({type:"QUESTIONS_READY",questions:shuffledQs,category:cat});
+    state.questions=shuffle(qs.slice());state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(cat);state.screen="question";render();startTimer();if(cat==="music")setTimeout(playPreview,500);
   }catch(e){alert("Σφάλμα AI: "+e.message);state.screen="lobby";render();}
 }
 
