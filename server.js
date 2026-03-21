@@ -8,7 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "2mb" }));
 
-// Serve frontend
 const rootFiles = fs.readdirSync(__dirname);
 const publicFolder = rootFiles.find(f => f.toLowerCase() === "public");
 const publicDir = publicFolder ? path.join(__dirname, publicFolder) : __dirname;
@@ -36,7 +35,8 @@ app.post("/api/generate", (req, res) => {
     headers: {
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(body),
-      "anthropic-version": "2023-06-01"
+      "anthropic-version": "2023-06-01",
+      "x-api-key": process.env.ANTHROPIC_API_KEY || ""
     }
   };
 
@@ -46,27 +46,39 @@ app.post("/api/generate", (req, res) => {
     apiRes.on("end", () => {
       try {
         const parsed = JSON.parse(data);
-        console.log("AI response status:", apiRes.statusCode);
-        if (parsed.error) {
-          console.log("AI error:", parsed.error);
-          return res.status(500).json({ error: parsed.error.message });
-        }
+        if (parsed.error) return res.status(500).json({ error: parsed.error.message });
         const text = parsed.content?.map(b => b.text || "").join("") || "{}";
-        // Clean and parse JSON from AI response
         const clean = text.replace(/```json|```/g, "").trim();
-        console.log("AI text (first 200):", clean.substring(0, 200));
-        res.json({ text: clean });
+
+        // Try to parse and validate the questions
+        let questions;
+        try {
+          const obj = JSON.parse(clean);
+          questions = obj.questions || [];
+        } catch(e) {
+          // If JSON parse fails, extract JSON from text
+          const match = clean.match(/\{[\s\S]*\}/);
+          if (match) {
+            const obj = JSON.parse(match[0]);
+            questions = obj.questions || [];
+          } else {
+            questions = [];
+          }
+        }
+
+        // Validate each question has required fields
+        questions = questions.filter(q => q && (q.options || q.word));
+
+        console.log(`Generated ${questions.length} questions`);
+        res.json({ questions });
       } catch (e) {
-        console.log("Parse error:", e.message, "Raw:", data.substring(0, 300));
-        res.status(500).json({ error: "Parse error: " + e.message });
+        console.log("Error:", e.message);
+        res.status(500).json({ error: e.message });
       }
     });
   });
 
-  apiReq.on("error", e => {
-    console.log("Request error:", e.message);
-    res.status(500).json({ error: e.message });
-  });
+  apiReq.on("error", e => res.status(500).json({ error: e.message }));
   apiReq.write(body);
   apiReq.end();
 });
@@ -75,15 +87,11 @@ app.post("/api/generate", (req, res) => {
 app.get("/api/preview", (req, res) => {
   const { q } = req.query;
   if (!q) return res.json({ results: [] });
-  const url = `/search?term=${encodeURIComponent(q)}&media=music&limit=1`;
-  const opts = { hostname: "itunes.apple.com", path: url, method: "GET" };
+  const opts = { hostname: "itunes.apple.com", path: `/search?term=${encodeURIComponent(q)}&media=music&limit=1`, method: "GET" };
   https.get(opts, apiRes => {
     let data = "";
     apiRes.on("data", chunk => data += chunk);
-    apiRes.on("end", () => {
-      try { res.json(JSON.parse(data)); }
-      catch { res.json({ results: [] }); }
-    });
+    apiRes.on("end", () => { try { res.json(JSON.parse(data)); } catch { res.json({ results: [] }); } });
   }).on("error", () => res.json({ results: [] }));
 });
 
@@ -105,9 +113,7 @@ function sendToAll(roomCode, message) { broadcastToRoom(roomCode, message); }
 function getPlayersArray(roomCode) {
   const room = rooms.get(roomCode);
   if (!room) return [];
-  return Array.from(room.players.entries()).map(([id, p]) => ({
-    id, name: p.name, score: p.score, colorIdx: p.colorIdx, isHost: p.isHost
-  }));
+  return Array.from(room.players.entries()).map(([id, p]) => ({ id, name: p.name, score: p.score, colorIdx: p.colorIdx, isHost: p.isHost }));
 }
 
 wss.on("connection", (ws) => {
