@@ -50,26 +50,47 @@ app.post("/api/generate", (req, res) => {
         const text = parsed.content?.map(b => b.text || "").join("") || "{}";
         const clean = text.replace(/```json|```/g, "").trim();
 
-        // Try to parse and validate the questions
-        let questions;
+        // Robust JSON parsing
+        let questions = [];
         try {
+          // Try direct parse first
           const obj = JSON.parse(clean);
           questions = obj.questions || [];
-        } catch(e) {
-          // If JSON parse fails, extract JSON from text
-          const match = clean.match(/\{[\s\S]*\}/);
-          if (match) {
-            const obj = JSON.parse(match[0]);
-            questions = obj.questions || [];
-          } else {
-            questions = [];
+        } catch(e1) {
+          try {
+            // Try to extract JSON object
+            const match = clean.match(/\{[\s\S]*\}/);
+            if (match) {
+              const obj = JSON.parse(match[0]);
+              questions = obj.questions || [];
+            }
+          } catch(e2) {
+            try {
+              // Try to fix common JSON issues - truncate at last valid question
+              const arrMatch = clean.match(/"questions"\s*:\s*(\[[\s\S]*)/);
+              if (arrMatch) {
+                let arrStr = arrMatch[1];
+                // Find last complete object
+                let depth = 0, lastValid = 0;
+                for (let i = 0; i < arrStr.length; i++) {
+                  if (arrStr[i] === '{') depth++;
+                  if (arrStr[i] === '}') { depth--; if (depth === 0) lastValid = i; }
+                }
+                if (lastValid > 0) {
+                  const fixed = arrStr.substring(0, lastValid + 1) + ']';
+                  questions = JSON.parse(fixed);
+                }
+              }
+            } catch(e3) {
+              console.log('All parse attempts failed:', e3.message);
+              questions = [];
+            }
           }
         }
 
         // Validate each question has required fields
         questions = questions.filter(q => q && (q.options || q.word));
-
-        console.log(`Generated ${questions.length} questions`);
+        console.log(`Generated ${questions.length} valid questions`);
         res.json({ questions });
       } catch (e) {
         console.log("Error:", e.message);
