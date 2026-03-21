@@ -12,7 +12,19 @@ app.use(express.json({ limit: "2mb" }));
 const indexPath = path.join(__dirname, "index.html");
 console.log("Serving index from:", indexPath);
 
-app.use(express.static(__dirname));
+// Force no-cache for index.html
+app.get("/", (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+app.use(express.static(__dirname, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+  }
+}));
 
 // ── AI Proxy ──────────────────────────────────────────────────────────
 app.post("/api/generate", (req, res) => {
