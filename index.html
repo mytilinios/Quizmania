@@ -44,6 +44,7 @@ input:focus{border-color:#f0c040;}
 <div id="status-bar">Σύνδεση...</div>
 
 <script>
+// v3.0 - music subcategories fix
 const CATEGORIES=[{id:"general",label:"Γενικές Γνώσεις",emoji:"🧠"},{id:"football",label:"Ποδόσφαιρο",emoji:"⚽"},{id:"pictionary",label:"Pictionary",emoji:"🎨"},{id:"vocabulary",label:"Λεξιλόγιο",emoji:"📚"},{id:"geography",label:"Γεωγραφία",emoji:"🌍"},{id:"movies",label:"Κινηματογράφος & Σειρές",emoji:"🎬"},{id:"music",label:"Μουσική",emoji:"🎵",hasSubcategories:true},{id:"history",label:"Ιστορία",emoji:"🏛️"},{id:"science",label:"Επιστήμη & Τεχνολογία",emoji:"🔬"},{id:"food",label:"Φαγητό & Μαγειρική",emoji:"🍕"},{id:"videogames",label:"Video Games",emoji:"🎮"},{id:"animals",label:"Ζώα & Φύση",emoji:"🐾"},{id:"sports",label:"Αθλητισμός",emoji:"🏆"},{id:"travel",label:"Ταξίδια & Χώρες",emoji:"✈️"},{id:"trivia",label:"Τριβιά & Παράξενα",emoji:"🧩"}];
 const MUSIC_SUBCATEGORIES=[
   {id:"laika",label:"Λαϊκά"},
@@ -61,7 +62,7 @@ const getColor=i=>COLORS[i%5];
 const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
 const myId=Math.random().toString(36).slice(2);
 
-let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:"mixta",questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
+let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:"mixta",questionCount:10,questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
 let ws=null,timerInterval=null,audioEl=null,wsReady=false;
 
 function setStatus(msg,ok=false){
@@ -103,11 +104,11 @@ async function generateAndSend(){
   const cat=state.category;
   const catLabel=CATEGORIES.find(c=>c.id===cat)?.label||cat;
   let prompt="";
-  if(cat==="pictionary"){prompt=`Δημιούργησε 6 λέξεις για Pictionary στα Ελληνικά. Απάντησε ΜΟΝΟ JSON:\n{"questions":[{"word":"...","hint":"κατηγορία","difficulty":"easy/medium/hard"}]}`;}
+  if(cat==="pictionary"){prompt=`Δημιούργησε ${state.questionCount} λέξεις για Pictionary στα Ελληνικά. Απάντησε ΜΟΝΟ JSON:\n{"questions":[{"word":"...","hint":"κατηγορία","difficulty":"easy/medium/hard"}]}`;}
   else if(cat==="music"){
     var subcat=MUSIC_SUBCATEGORIES.find(function(s){return s.id===state.musicSubcategory;})||{label:"Μίξη όλων"};
-    prompt=`Δημιούργησε 6 ερωτήσεις μουσικής για το στυλ "${subcat.label}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
-  else{prompt=`Δημιούργησε 6 ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
+    prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις μουσικής για το στυλ "${subcat.label}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
+  else{prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
   try{
     const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
     const data=await res.json();
@@ -190,12 +191,21 @@ function doJoin(){
 function renderLobby(){
   const catBtns=CATEGORIES.map(cat=>`<button onclick="selectCategory('${cat.id}')" style="padding:9px 13px;border-radius:10px;cursor:pointer;text-align:left;border:2px solid ${state.category===cat.id?"#f0c040":"#2a2a40"};background:${state.category===cat.id?"#f0c04022":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;display:flex;align-items:center;gap:8px;width:100%;"><span>${cat.emoji}</span><span>${cat.label}</span></button>`).join("");
   const chips=state.players.map(p=>`<div class="chip">${avatar(p.name,getColor(p.colorIdx),28)}<span style="font-size:13px;font-weight:600;">${p.name}</span>${p.isHost?'<span style="color:#f0c040;font-size:10px;">HOST</span>':""}</div>`).join("");
-  return `<div class="screen"><div class="inner"><div style="text-align:center;margin-bottom:24px;"><span class="label">ΚΩΔΙΚΟΣ ΔΩΜΑΤΙΟΥ</span><div class="bebas accent" style="font-size:64px;letter-spacing:12px;line-height:1.1;">${state.room}</div><p class="muted" style="font-size:13px;">Μοιραστείτε τον κωδικό με τους παίκτες</p></div><span class="label">ΚΑΤΗΓΟΡΙΑ</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:220px;overflow-y:auto;margin-bottom:10px;">${catBtns}</div><p style="color:#f0c040;font-size:13px;margin-bottom:14px;">✓ ${CATEGORIES.find(c=>c.id===state.category)?.label}</p><div class="surface" style="margin-bottom:14px;"><p style="color:#f0c040;font-size:12px;font-weight:700;margin-bottom:4px;">⚡ ΣΥΣΤΗΜΑ ΠΟΝΤΩΝ ΤΑΧΥΤΗΤΑΣ</p><p class="muted" style="font-size:12px;line-height:1.7;">1ος σωστός = N-1 πόντοι, 2ος = N-2, ..., τελευταίος = 0</p></div><span class="label">ΠΑΙΚΤΕΣ (${state.players.length})</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">${chips}</div><button class="btn-primary" style="width:100%;font-size:17px;padding:16px;" onclick="startGame()">🚀 Έναρξη Παιχνιδιού</button></div></div>`;
+  return `<div class="screen"><div class="inner"><div style="text-align:center;margin-bottom:24px;"><span class="label">ΚΩΔΙΚΟΣ ΔΩΜΑΤΙΟΥ</span><div class="bebas accent" style="font-size:64px;letter-spacing:12px;line-height:1.1;">${state.room}</div><p class="muted" style="font-size:13px;">Μοιραστείτε τον κωδικό με τους παίκτες</p></div><span class="label">ΚΑΤΗΓΟΡΙΑ</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:220px;overflow-y:auto;margin-bottom:10px;">${catBtns}</div><p style="color:#f0c040;font-size:13px;margin-bottom:14px;">✓ ${CATEGORIES.find(c=>c.id===state.category)?.label}</p><div class="surface" style="margin-bottom:14px;"><p style="color:#f0c040;font-size:12px;font-weight:700;margin-bottom:4px;">⚡ ΣΥΣΤΗΜΑ ΠΟΝΤΩΝ ΤΑΧΥΤΗΤΑΣ</p><p class="muted" style="font-size:12px;line-height:1.7;">1ος σωστός = N-1 πόντοι, 2ος = N-2, ..., τελευταίος = 0</p></div>
+  <div style="margin-bottom:14px;">
+    <p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΑΡΙΘΜΟΣ ΕΡΩΤΗΣΕΩΝ</p>
+    <div style="display:flex;gap:10px;">
+      ${[10,20,30].map(n=>`<button onclick="selectCount(${n})" style="flex:1;padding:10px;border-radius:10px;cursor:pointer;border:2px solid ${state.questionCount===n?"#f0c040":"#2a2a40"};background:${state.questionCount===n?"#f0c04022":"#13131c"};color:${state.questionCount===n?"#f0c040":"#f0eee8"};font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;">${n}</button>`).join("")}
+    </div>
+  </div>
+  ${state.category==="music"?`<div style="margin-bottom:14px;"><p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΣΤΥΛ ΜΟΥΣΙΚΗΣ</p><div style="display:flex;flex-wrap:wrap;gap:8px;">${MUSIC_SUBCATEGORIES.map(s=>`<button onclick="selectMusicSub('${s.id}')" style="padding:7px 14px;border-radius:8px;cursor:pointer;border:2px solid ${state.musicSubcategory===s.id?"#c084fc":"#2a2a40"};background:${state.musicSubcategory===s.id?"#c084fc22":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;">${s.label}</button>`).join("")}</div></div>`:""}<span class="label">ΠΑΙΚΤΕΣ (${state.players.length})</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">${chips}</div><button class="btn-primary" style="width:100%;font-size:17px;padding:16px;" onclick="startGame()">🚀 Έναρξη Παιχνιδιού</button></div></div>`;
 }
 
 function selectCategory(id){state.category=id;send({type:"CATEGORY_CHANGE",category:id});render();}
 function selectMusicSub(id){state.musicSubcategory=id;render();}
+function selectCount(n){state.questionCount=n;render();}
 function selectMusicSub(id){state.musicSubcategory=id;render();}
+function selectCount(n){state.questionCount=n;render();}
 function startGame(){send({type:"GAME_START",category:state.category});state.screen="loading";render();generateAndSend();}
 
 function renderWaiting(){const chips=state.players.map(p=>`<div class="chip">${avatar(p.name,getColor(p.colorIdx),28)}<span style="font-size:13px;">${p.name}</span></div>`).join("");return `<div class="screen center"><div style="font-size:48px;">⏳</div><h2 class="bebas" style="font-size:28px;letter-spacing:2px;margin:12px 0 4px;">ΑΝΑΜΟΝΗ ΕΝΑΡΞΗΣ</h2><p class="muted">Κωδικός: <span class="accent" style="font-weight:700;">${state.room}</span></p><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px;">${chips}</div><div class="spinner"></div></div>`;}
