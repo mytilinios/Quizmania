@@ -111,7 +111,7 @@ async function generateAndSend(){
     prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις μουσικής για τα στυλ "${subcatLabels}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
   else{prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
   try{
-    const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+    const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,count:state.questionCount})});
     const data=await res.json();
     if(data.error)throw new Error(data.error);
     const qs=data.questions||[];
@@ -121,7 +121,7 @@ async function generateAndSend(){
   }catch(e){alert("Σφάλμα AI: "+e.message);state.screen="lobby";render();}
 }
 
-async function fetchPreview(track,artist){try{const q=encodeURIComponent(`${track} ${artist}`);const r=await fetch(`/api/preview?q=${q}`);const d=await r.json();return d.results?.[0]?.previewUrl||null;}catch{return null;}}
+async function fetchPreview(track,artist){try{const r=await fetch(`/api/preview?track=${encodeURIComponent(track)}&artist=${encodeURIComponent(artist)}`);const d=await r.json();return d.previewUrl||null;}catch{return null;}}
 
 function computeRoundPoints(){
   const q=state.questions[state.qIndex];
