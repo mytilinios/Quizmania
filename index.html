@@ -63,7 +63,7 @@ const getColor=i=>COLORS[i%5];
 const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
 const myId=Math.random().toString(36).slice(2);
 
-let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:"mixta",questionCount:10,questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
+let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:["mixta"],questionCount:10,questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
 let ws=null,timerInterval=null,audioEl=null,wsReady=false;
 
 function setStatus(msg,ok=false){
@@ -107,8 +107,8 @@ async function generateAndSend(){
   let prompt="";
   if(cat==="pictionary"){prompt=`Δημιούργησε ${state.questionCount} λέξεις για Pictionary στα Ελληνικά. Απάντησε ΜΟΝΟ JSON:\n{"questions":[{"word":"...","hint":"κατηγορία","difficulty":"easy/medium/hard"}]}`;}
   else if(cat==="music"){
-    var subcat=MUSIC_SUBCATEGORIES.find(function(s){return s.id===state.musicSubcategory;})||{label:"Μίξη όλων"};
-    prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις μουσικής για το στυλ "${subcat.label}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
+    var subcatLabels=state.musicSubcategory.map(function(id){var s=MUSIC_SUBCATEGORIES.find(function(x){return x.id===id;});return s?s.label:id;}).join(", ");
+    prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις μουσικής για τα στυλ "${subcatLabels}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
   else{prompt=`Δημιούργησε ${state.questionCount} ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
   try{
     const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
@@ -199,13 +199,31 @@ function renderLobby(){
       ${[10,20,30].map(n=>`<button onclick="selectCount(${n})" style="flex:1;padding:10px;border-radius:10px;cursor:pointer;border:2px solid ${state.questionCount===n?"#f0c040":"#2a2a40"};background:${state.questionCount===n?"#f0c04022":"#13131c"};color:${state.questionCount===n?"#f0c040":"#f0eee8"};font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;">${n}</button>`).join("")}
     </div>
   </div>
-  ${state.category==="music"?`<div style="margin-bottom:14px;"><p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΣΤΥΛ ΜΟΥΣΙΚΗΣ</p><div style="display:flex;flex-wrap:wrap;gap:8px;">${MUSIC_SUBCATEGORIES.map(s=>`<button onclick="selectMusicSub('${s.id}')" style="padding:7px 14px;border-radius:8px;cursor:pointer;border:2px solid ${state.musicSubcategory===s.id?"#c084fc":"#2a2a40"};background:${state.musicSubcategory===s.id?"#c084fc22":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;">${s.label}</button>`).join("")}</div></div>`:""}<span class="label">ΠΑΙΚΤΕΣ (${state.players.length})</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">${chips}</div><button class="btn-primary" style="width:100%;font-size:17px;padding:16px;" onclick="startGame()">🚀 Έναρξη Παιχνιδιού</button></div></div>`;
+  ${state.category==="music"?`<div style="margin-bottom:14px;"><p style="color:#8884a0;font-size:11px;letter-spacing:2px;font-family:'Bebas Neue',sans-serif;margin-bottom:8px;">ΣΤΥΛ ΜΟΥΣΙΚΗΣ</p><div style="display:flex;flex-wrap:wrap;gap:8px;">${MUSIC_SUBCATEGORIES.map(s=>`<button onclick="selectMusicSub('${s.id}')" style="padding:7px 14px;border-radius:8px;cursor:pointer;border:2px solid ${state.musicSubcategory.indexOf(s.id)>=0?"#c084fc":"#2a2a40"};background:${state.musicSubcategory.indexOf(s.id)>=0?"#c084fc22":"#13131c"};color:#f0eee8;font-size:13px;font-family:'Nunito',sans-serif;font-weight:600;">${s.label}</button>`).join("")}</div></div>`:""}<span class="label">ΠΑΙΚΤΕΣ (${state.players.length})</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">${chips}</div><button class="btn-primary" style="width:100%;font-size:17px;padding:16px;" onclick="startGame()">🚀 Έναρξη Παιχνιδιού</button></div></div>`;
 }
 
 function selectCategory(id){state.category=id;send({type:"CATEGORY_CHANGE",category:id});render();}
-function selectMusicSub(id){state.musicSubcategory=id;render();}
+function selectMusicSub(id){
+  if(id==="mixta"){state.musicSubcategory=["mixta"];}
+  else{
+    var arr=state.musicSubcategory.filter(function(x){return x!=="mixta";});
+    var idx=arr.indexOf(id);
+    if(idx>=0){arr.splice(idx,1);}else{arr.push(id);}
+    state.musicSubcategory=arr.length===0?["mixta"]:arr;
+  }
+  render();
+}
 function selectCount(n){state.questionCount=n;render();}
-function selectMusicSub(id){state.musicSubcategory=id;render();}
+function selectMusicSub(id){
+  if(id==="mixta"){state.musicSubcategory=["mixta"];}
+  else{
+    var arr=state.musicSubcategory.filter(function(x){return x!=="mixta";});
+    var idx=arr.indexOf(id);
+    if(idx>=0){arr.splice(idx,1);}else{arr.push(id);}
+    state.musicSubcategory=arr.length===0?["mixta"]:arr;
+  }
+  render();
+}
 function selectCount(n){state.questionCount=n;render();}
 function startGame(){send({type:"GAME_START",category:state.category});state.screen="loading";render();generateAndSend();}
 
