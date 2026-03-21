@@ -83,15 +83,7 @@ function handleMsg(msg){
   if(msg.type==="CATEGORY_CHANGED"){state.category=msg.category;render();}
   if(msg.type==="GAME_START"){state.category=msg.category;state.screen="loading";render();if(state.isHost)generateAndSend();}
   if(msg.type==="QUESTIONS_READY"){state.questions=msg.questions;state.qIndex=0;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);}
-  if(msg.type==="ANSWER"){state.answers[msg.playerId]={answer:msg.answer,timestamp:msg.timestamp};render();
-  // Auto-advance when all non-host players answered
-  const nonHostPlayers=state.players.filter(p=>!p.isHost);
-  const nonHostAnswered=nonHostPlayers.filter(p=>state.answers[p.id]);
-  if(state.isHost&&nonHostPlayers.length>0&&nonHostAnswered.length>=nonHostPlayers.length){clearInterval(timerInterval);setTimeout(doReveal,300);}
-  else const nhp=state.players.filter(p=>!p.isHost);
-  const nha=nhp.filter(p=>state.answers[p.id]);
-  if(state.isHost&&nhp.length>0&&nha.length>=nhp.length){clearInterval(timerInterval);setTimeout(doReveal,300);}
-  else if(state.isHost&&Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}
+  if(msg.type==="ANSWER"){state.answers[msg.playerId]={answer:msg.answer,timestamp:msg.timestamp};render();if(state.isHost){var nhp=state.players.filter(function(p){return !p.isHost;});var nha=nhp.filter(function(p){return state.answers[p.id];});if(nhp.length>0&&nha.length>=nhp.length){clearInterval(timerInterval);setTimeout(doReveal,300);}else if(Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}}
   if(msg.type==="SHOW_REVEAL"){clearInterval(timerInterval);stopAudio();state.roundPoints=msg.roundPoints;state.screen="reveal";render();if(state.isHost){setTimeout(()=>{if(state.screen==="reveal")nextQuestion();},5000);}}
   if(msg.type==="NEXT_QUESTION"){state.players=msg.players;state.qIndex=msg.qIndex;state.answers={};state.roundPoints={};state.myAnswer=undefined;state.timeLeft=getTimeLimit(msg.category);if(msg.qIndex>=msg.total){state.screen="final";}else{state.screen="question";render();startTimer();if(msg.category==="music")setTimeout(playPreview,500);return;}render();}
 }
@@ -219,10 +211,7 @@ function renderQuestionPlayer(){
   return `<div class="screen"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span class="muted" style="font-size:14px;">${state.qIndex+1}/${state.questions.length}</span>${countdownRing()}<span class="muted" style="font-size:12px;">⚡ Απάντα γρήγορα!</span></div>${content}</div></div>`;
 }
 
-function submitAnswer(i){if(state.myAnswer!==undefined)return;state.myAnswer=i;const ts=Date.now();state.answers[myId]={answer:i,timestamp:ts};send({type:"ANSWER",playerId:myId,answer:i,timestamp:ts});render();const nhp=state.players.filter(p=>!p.isHost);
-  const nha=nhp.filter(p=>state.answers[p.id]);
-  if(state.isHost&&nhp.length>0&&nha.length>=nhp.length){clearInterval(timerInterval);setTimeout(doReveal,300);}
-  else if(state.isHost&&Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}
+function submitAnswer(i){if(state.myAnswer!==undefined)return;state.myAnswer=i;const ts=Date.now();state.answers[myId]={answer:i,timestamp:ts};send({type:"ANSWER",playerId:myId,answer:i,timestamp:ts});render();if(state.isHost){var nhp2=state.players.filter(function(p){return !p.isHost;});var nha2=nhp2.filter(function(p){return state.answers[p.id];});if(nhp2.length>0&&nha2.length>=nhp2.length){clearInterval(timerInterval);setTimeout(doReveal,300);}else if(Object.keys(state.answers).length>=state.players.length){clearInterval(timerInterval);setTimeout(doReveal,300);}}}
 function submitPic(){const val=document.getElementById("pic-ans")?.value.trim();if(!val||state.myAnswer!==undefined)return;state.myAnswer=val;const ts=Date.now();state.answers[myId]={answer:val,timestamp:ts};send({type:"ANSWER",playerId:myId,answer:val,timestamp:ts});render();}
 function toggleAudio(){if(!audioEl){playPreview();const b=document.getElementById("play-btn");if(b)b.textContent="⏸";}else{stopAudio();const b=document.getElementById("play-btn");if(b)b.textContent="▶️";}}
 
