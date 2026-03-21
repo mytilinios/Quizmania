@@ -47,32 +47,24 @@ function getSpotifyToken() {
   });
 }
 
-function searchSpotifyPreview(trackName, artistName) {
-  return new Promise(async (resolve) => {
-    try {
-      const token = await getSpotifyToken();
-      if (!token) return resolve(null);
-      
-      const q = encodeURIComponent(`track:${trackName} artist:${artistName}`);
-      const options = {
-        hostname: 'api.spotify.com',
-        path: `/v1/search?q=${q}&type=track&limit=1&market=GR`,
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
-      };
-      
-      https.get(options, res => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            const track = parsed.tracks?.items?.[0];
-            resolve(track?.preview_url || null);
-          } catch(e) { resolve(null); }
-        });
-      }).on('error', () => resolve(null));
-    } catch(e) { resolve(null); }
+function searchYouTubeVideoId(trackName, artistName) {
+  return new Promise((resolve) => {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) return resolve(null);
+    const q = encodeURIComponent(`${trackName} ${artistName} official`);
+    const path = `/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${apiKey}`;
+    const options = { hostname: 'www.googleapis.com', path, method: 'GET' };
+    https.get(options, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const videoId = parsed.items?.[0]?.id?.videoId;
+          resolve(videoId || null);
+        } catch(e) { resolve(null); }
+      });
+    }).on('error', () => resolve(null));
   });
 }
 
@@ -259,15 +251,15 @@ app.post("/api/generate", async (req, res) => {
   apiReq.end();
 });
 
-// ── Spotify Preview Proxy ────────────────────────────────────────────
+// ── YouTube Preview Proxy ────────────────────────────────────────────
 app.get("/api/preview", async (req, res) => {
   const { track, artist } = req.query;
-  if (!track) return res.json({ previewUrl: null });
+  if (!track) return res.json({ videoId: null });
   try {
-    const previewUrl = await searchSpotifyPreview(track, artist || "");
-    res.json({ previewUrl });
+    const videoId = await searchYouTubeVideoId(track, artist || "");
+    res.json({ videoId });
   } catch(e) {
-    res.json({ previewUrl: null });
+    res.json({ videoId: null });
   }
 });
 
