@@ -44,13 +44,13 @@ input:focus{border-color:#f0c040;}
 <div id="status-bar">Σύνδεση...</div>
 
 <script>
-const CATEGORIES=[{id:"general",label:"Γενικές Γνώσεις",emoji:"🧠"},{id:"football",label:"Ποδόσφαιρο",emoji:"⚽"},{id:"pictionary",label:"Pictionary",emoji:"🎨"},{id:"vocabulary",label:"Λεξιλόγιο",emoji:"📚"},{id:"geography",label:"Γεωγραφία",emoji:"🌍"},{id:"movies",label:"Κινηματογράφος & Σειρές",emoji:"🎬"},{id:"music",label:"Μουσική",emoji:"🎵"},{id:"history",label:"Ιστορία",emoji:"🏛️"},{id:"science",label:"Επιστήμη & Τεχνολογία",emoji:"🔬"},{id:"food",label:"Φαγητό & Μαγειρική",emoji:"🍕"},{id:"videogames",label:"Video Games",emoji:"🎮"},{id:"animals",label:"Ζώα & Φύση",emoji:"🐾"},{id:"sports",label:"Αθλητισμός",emoji:"🏆"},{id:"travel",label:"Ταξίδια & Χώρες",emoji:"✈️"},{id:"trivia",label:"Τριβιά & Παράξενα",emoji:"🧩"}];
+const CATEGORIES=[{id:"general",label:"Γενικές Γνώσεις",emoji:"🧠"},{id:"football",label:"Ποδόσφαιρο",emoji:"⚽"},{id:"pictionary",label:"Pictionary",emoji:"🎨"},{id:"vocabulary",label:"Λεξιλόγιο",emoji:"📚"},{id:"geography",label:"Γεωγραφία",emoji:"🌍"},{id:"movies",label:"Κινηματογράφος & Σειρές",emoji:"🎬"},{id:"music",label:"Μουσική",emoji:"🎵",hasSubcategories:true},{id:"history",label:"Ιστορία",emoji:"🏛️"},{id:"science",label:"Επιστήμη & Τεχνολογία",emoji:"🔬"},{id:"food",label:"Φαγητό & Μαγειρική",emoji:"🍕"},{id:"videogames",label:"Video Games",emoji:"🎮"},{id:"animals",label:"Ζώα & Φύση",emoji:"🐾"},{id:"sports",label:"Αθλητισμός",emoji:"🏆"},{id:"travel",label:"Ταξίδια & Χώρες",emoji:"✈️"},{id:"trivia",label:"Τριβιά & Παράξενα",emoji:"🧩"}];
 const COLORS=["#f0c040","#3dffa0","#4fa3ff","#c084fc","#ff4f6a"];
 const getColor=i=>COLORS[i%5];
 const getTimeLimit=cat=>cat==="pictionary"?60:cat==="music"?30:20;
 const myId=Math.random().toString(36).slice(2);
 
-let state={screen:"home",isHost:false,room:"",players:[],category:"general",questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
+let state={screen:"home",isHost:false,room:"",players:[],category:"general",musicSubcategory:"mixta",questions:[],qIndex:0,timeLeft:20,answers:{},roundPoints:{},myAnswer:undefined};
 let ws=null,timerInterval=null,audioEl=null,wsReady=false;
 
 function setStatus(msg,ok=false){
@@ -93,7 +93,9 @@ async function generateAndSend(){
   const catLabel=CATEGORIES.find(c=>c.id===cat)?.label||cat;
   let prompt="";
   if(cat==="pictionary"){prompt=`Δημιούργησε 6 λέξεις για Pictionary στα Ελληνικά. Απάντησε ΜΟΝΟ JSON:\n{"questions":[{"word":"...","hint":"κατηγορία","difficulty":"easy/medium/hard"}]}`;}
-  else if(cat==="music"){prompt=`Δημιούργησε 6 ερωτήσεις μουσικής. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Ποικιλία στυλ. Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"Ποιος ερμηνεύει το τραγούδι;","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
+  else if(cat==="music"){
+    var subcat=MUSIC_SUBCATEGORIES.find(function(s){return s.id===state.musicSubcategory;})||{label:"Μίξη όλων"};
+    prompt=`Δημιούργησε 6 ερωτήσεις μουσικής για το στυλ "${subcat.label}" στα Ελληνικά. Χρησιμοποίησε πραγματικά τραγούδια που υπάρχουν στο iTunes. Εναλλάσσου: μερικές ερωτήσεις να ζητάνε να βρουν τον ΤΙΤΛΟ (guessType:"title"), άλλες να βρουν τον ΚΑΛΛΙΤΕΧΝΗ (guessType:"artist"). Απάντησε ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"guessType":"title","trackName":"ακριβής τίτλος","artistName":"ακριβές όνομα","options":["α) Σωστός τίτλος","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."},{"guessType":"artist","trackName":"τίτλος","artistName":"καλλιτέχνης","options":["α) Σωστός καλλιτέχνης","β) Λάθος1","γ) Λάθος2","δ) Λάθος3"],"answer":0,"fun_fact":"..."}]}`;}
   else{prompt=`Δημιούργησε 6 ερωτήσεις πολλαπλής επιλογής για "${catLabel}" στα Ελληνικά. Να είναι μέτριας έως υψηλής δυσκολίας - όχι πολύ εύκολες. ΜΟΝΟ JSON χωρίς markdown:\n{"questions":[{"q":"...","options":["α)...","β)...","γ)...","δ)..."],"answer":0,"fun_fact":"..."}]}`;}
   try{
     const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
@@ -181,6 +183,8 @@ function renderLobby(){
 }
 
 function selectCategory(id){state.category=id;send({type:"CATEGORY_CHANGE",category:id});render();}
+function selectMusicSub(id){state.musicSubcategory=id;render();}
+function selectMusicSub(id){state.musicSubcategory=id;render();}
 function startGame(){send({type:"GAME_START",category:state.category});state.screen="loading";render();generateAndSend();}
 
 function renderWaiting(){const chips=state.players.map(p=>`<div class="chip">${avatar(p.name,getColor(p.colorIdx),28)}<span style="font-size:13px;">${p.name}</span></div>`).join("");return `<div class="screen center"><div style="font-size:48px;">⏳</div><h2 class="bebas" style="font-size:28px;letter-spacing:2px;margin:12px 0 4px;">ΑΝΑΜΟΝΗ ΕΝΑΡΞΗΣ</h2><p class="muted">Κωδικός: <span class="accent" style="font-weight:700;">${state.room}</span></p><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px;">${chips}</div><div class="spinner"></div></div>`;}
@@ -195,7 +199,8 @@ function renderQuestionHost(){
   if(isPic){content=`<div style="text-align:center;padding:28px 0;"><p class="muted" style="font-size:13px;margin-bottom:8px;">Ζωγραφίστε:</p><div class="bebas accent" style="font-size:50px;letter-spacing:4px;">${(q.word||"").toUpperCase()}</div><span style="background:#13131c;padding:4px 14px;border-radius:8px;color:#8884a0;font-size:12px;">Κατηγορία: ${q.hint}</span></div>`;}
   else{const opts=(q.options||[]).map((opt,i)=>`<div style="background:${colors[i]}18;border:2px solid ${colors[i]}44;border-radius:12px;padding:13px 14px;display:flex;gap:10px;align-items:flex-start;"><span class="bebas" style="font-size:20px;color:${colors[i]};min-width:22px;">${letters[i]}</span><span style="font-size:13px;font-weight:600;line-height:1.4;">${opt}</span></div>`).join("");
   const musicPl=isMusic&&q.previewUrl?`<div style="background:linear-gradient(135deg,#c084fc22,#4fa3ff22);border-radius:14px;padding:16px 20px;border:2px solid #c084fc44;margin-bottom:14px;display:flex;align-items:center;gap:14px;"><button onclick="toggleAudio()" id="play-btn" style="width:50px;height:50px;border-radius:50%;background:#c084fc;border:none;cursor:pointer;font-size:20px;flex-shrink:0;">▶️</button><div><div style="font-weight:700;font-size:14px;">🎵 Preview τραγουδιού</div><div class="muted" style="font-size:12px;" id="audio-status">Πατήστε play</div></div></div>`:"";
-  content=`${musicPl}<div class="surface" style="margin-bottom:14px;"><p style="font-size:16px;font-weight:700;line-height:1.5;">${q.q}</p>${isMusic&&q.trackName?`<p class="purple" style="font-size:12px;margin-top:6px;">🎵 ${q.trackName} — ${q.artistName}</p>`:""}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
+  var musicQuestion=isMusic?(q.guessType==="title"?"🎵 Ποιος είναι ο τίτλος του τραγουδιού;":"🎤 Ποιος ερμηνεύει αυτό το τραγούδι;"):(q.q||"");
+  content=`${musicPl}<div class="surface" style="margin-bottom:14px;"><p style="font-size:16px;font-weight:700;line-height:1.5;">${musicQuestion}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
   return `<div class="screen"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span class="muted bebas" style="letter-spacing:2px;">ΕΡΩΤΗΣΗ ${state.qIndex+1}/${state.questions.length}</span>${countdownRing()}<span class="muted" style="font-size:13px;">✅ ${answered}/${state.players.length}</span></div>${content}<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;">${statuses}</div></div></div>`;
 }
 
@@ -207,7 +212,7 @@ function renderQuestionPlayer(){
   if(isPic){content=`<p style="font-weight:700;font-size:16px;margin-bottom:12px;">Τι ζωγραφίζει το host;</p><div style="display:flex;gap:10px;"><input id="pic-ans" placeholder="Γράψε εδώ..." style="flex:1;" onkeydown="if(event.key==='Enter')submitPic();"/><button class="btn-primary" style="padding:12px 18px;" onclick="submitPic()">→</button></div>`;}
   else{const musicNote=isMusic?`<div style="background:linear-gradient(135deg,#c084fc22,#4fa3ff22);border-radius:14px;padding:14px 18px;border:2px solid #c084fc44;margin-bottom:14px;text-align:center;"><div style="font-size:30px;">🎵</div><p class="purple" style="font-size:13px;font-weight:700;margin-top:4px;">Ακούστε το τραγούδι στην κεντρική οθόνη</p></div>`:"";
   const opts=(q.options||[]).map((opt,i)=>`<button class="ans-btn" onclick="submitAnswer(${i})" style="background:${colors[i]}22;border:2px solid ${colors[i]}66;"><span class="bebas" style="font-size:22px;color:${colors[i]};min-width:22px;line-height:1;">${letters[i]}</span><span style="font-size:13px;font-weight:600;line-height:1.4;color:#f0eee8;">${opt}</span></button>`).join("");
-  content=`${musicNote}<div class="surface" style="margin-bottom:14px;"><p style="font-size:15px;font-weight:700;line-height:1.5;">${q.q}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
+  content=`${musicNote}<div class="surface" style="margin-bottom:14px;"><p style="font-size:15px;font-weight:700;line-height:1.5;">${state.category==="music"?(q.guessType==="title"?"🎵 Ποιος είναι ο τίτλος του τραγουδιού;":"🎤 Ποιος ερμηνεύει αυτό το τραγούδι;"):(q.q||"")}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${opts}</div>`;}
   return `<div class="screen"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span class="muted" style="font-size:14px;">${state.qIndex+1}/${state.questions.length}</span>${countdownRing()}<span class="muted" style="font-size:12px;">⚡ Απάντα γρήγορα!</span></div>${content}</div></div>`;
 }
 
