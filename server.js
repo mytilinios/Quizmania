@@ -4,6 +4,78 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 
+// ── Spotify API ───────────────────────────────────────────────────────
+let spotifyToken = null;
+let spotifyTokenExpiry = 0;
+
+function getSpotifyToken() {
+  return new Promise((resolve, reject) => {
+    if (spotifyToken && Date.now() < spotifyTokenExpiry) {
+      return resolve(spotifyToken);
+    }
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return resolve(null);
+    
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const body = 'grant_type=client_credentials';
+    const options = {
+      hostname: 'accounts.spotify.com',
+      path: '/api/token',
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    };
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          spotifyToken = parsed.access_token;
+          spotifyTokenExpiry = Date.now() + (parsed.expires_in - 60) * 1000;
+          resolve(spotifyToken);
+        } catch(e) { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.write(body);
+    req.end();
+  });
+}
+
+function searchSpotifyPreview(trackName, artistName) {
+  return new Promise(async (resolve) => {
+    try {
+      const token = await getSpotifyToken();
+      if (!token) return resolve(null);
+      
+      const q = encodeURIComponent(`track:${trackName} artist:${artistName}`);
+      const options = {
+        hostname: 'api.spotify.com',
+        path: `/v1/search?q=${q}&type=track&limit=1&market=GR`,
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      };
+      
+      https.get(options, res => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            const track = parsed.tracks?.items?.[0];
+            resolve(track?.preview_url || null);
+          } catch(e) { resolve(null); }
+        });
+      }).on('error', () => resolve(null));
+    } catch(e) { resolve(null); }
+  });
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "2mb" }));
@@ -27,9 +99,80 @@ app.use(express.static(__dirname, {
 }));
 
 // ── AI Proxy ──────────────────────────────────────────────────────────
-app.post("/api/generate", (req, res) => {
-  const { prompt } = req.body;
+function callAnthropicAPI(prompt) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4000,
+      messages: [{ role: "user", content: prompt }]
+    });
+    const options = {
+      hostname: "api.anthropic.com",
+      path: "/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+        "anthropic-version": "2023-06-01",
+        "x-api-key": process.env.ANTHROPIC_API_KEY || ""
+      }
+    };
+    const apiReq = https.request(options, apiRes => {
+      let data = "";
+      apiRes.on("data", chunk => data += chunk);
+      apiRes.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error.message));
+          const text = parsed.content?.map(b => b.text || "").join("") || "{}";
+          const clean = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
+          let questions = [];
+          try { questions = JSON.parse(clean).questions || []; } 
+          catch(e) {
+            const match = clean.match(/\{[\s\S]*\}/);
+            if (match) { try { questions = JSON.parse(match[0]).questions || []; } catch(e2) {} }
+          }
+          questions = questions.filter(q => q && (q.options || q.word));
+          resolve(questions);
+        } catch(e) { reject(e); }
+      });
+    });
+    apiReq.on("error", reject);
+    apiReq.write(body);
+    apiReq.end();
+  });
+}
+
+app.post("/api/generate", async (req, res) => {
+  const { prompt, count } = req.body;
   if (!prompt) return res.status(400).json({ error: "No prompt" });
+  
+  // For large counts, split into batches of max 10
+  const totalCount = count || 10;
+  if (totalCount > 10) {
+    const batches = Math.ceil(totalCount / 10);
+    const batchSize = Math.ceil(totalCount / batches);
+    let allQuestions = [];
+    
+    const batchPromises = [];
+    for (let b = 0; b < batches; b++) {
+      // Replace the count in prompt with batchSize
+      const batchPrompt = prompt.replace(/Δημιούργησε \d+ /, `Δημιούργησε ${batchSize} `);
+      batchPromises.push(callAnthropicAPI(batchPrompt));
+    }
+    
+    try {
+      const results = await Promise.all(batchPromises);
+      results.forEach(qs => { allQuestions = allQuestions.concat(qs); });
+      // Shuffle and trim to requested count
+      for(let i=allQuestions.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[allQuestions[i],allQuestions[j]]=[allQuestions[j],allQuestions[i]];}
+      allQuestions = allQuestions.slice(0, totalCount);
+      console.log(`Batched: ${allQuestions.length} questions total`);
+      return res.json({ questions: allQuestions });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
 
   const body = JSON.stringify({
     model: "claude-sonnet-4-20250514",
@@ -99,7 +242,10 @@ app.post("/api/generate", (req, res) => {
 
         // Validate each question has required fields
         questions = questions.filter(q => q && (q.options || q.word));
-        console.log(`Generated ${questions.length} valid questions`);
+        console.log(`Generated ${questions.length} valid questions (requested: from prompt)`);
+        if (questions.length < 5) {
+          console.log('WARNING: Too few questions generated. Raw response:', clean.substring(0, 500));
+        }
         res.json({ questions });
       } catch (e) {
         console.log("Error:", e.message);
@@ -113,16 +259,16 @@ app.post("/api/generate", (req, res) => {
   apiReq.end();
 });
 
-// ── iTunes Proxy ──────────────────────────────────────────────────────
-app.get("/api/preview", (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.json({ results: [] });
-  const opts = { hostname: "itunes.apple.com", path: `/search?term=${encodeURIComponent(q)}&media=music&limit=1`, method: "GET" };
-  https.get(opts, apiRes => {
-    let data = "";
-    apiRes.on("data", chunk => data += chunk);
-    apiRes.on("end", () => { try { res.json(JSON.parse(data)); } catch { res.json({ results: [] }); } });
-  }).on("error", () => res.json({ results: [] }));
+// ── Spotify Preview Proxy ────────────────────────────────────────────
+app.get("/api/preview", async (req, res) => {
+  const { track, artist } = req.query;
+  if (!track) return res.json({ previewUrl: null });
+  try {
+    const previewUrl = await searchSpotifyPreview(track, artist || "");
+    res.json({ previewUrl });
+  } catch(e) {
+    res.json({ previewUrl: null });
+  }
 });
 
 app.get("*", (_, res) => res.sendFile(indexPath));
